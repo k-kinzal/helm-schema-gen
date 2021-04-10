@@ -2,12 +2,12 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/karuppiah7890/go-jsonschema-generator"
+	"github.com/karuppiah7890/helm-schema-gen/cmd/helper"
+	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 	"io/ioutil"
 	"os"
-
-	"github.com/karuppiah7890/go-jsonschema-generator"
-	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v2"
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -35,7 +35,20 @@ Examples:
 		if err != nil {
 			return fmt.Errorf("error when reading file '%s': %v", valuesFilePath, err)
 		}
-		err = yaml.Unmarshal(valuesFileData, &values)
+		root := yaml.Node{}
+		if ok, _ := cmd.Flags().GetBool("yaml-comment"); ok {
+			if err := helper.UnmarshalWithUncommentYAML(valuesFileData, &root); err != nil {
+				return fmt.Errorf("error when unmarshaling file '%s': %v", valuesFilePath, err)
+			}
+		} else {
+			if err = yaml.Unmarshal(valuesFileData, &root); err != nil {
+				return fmt.Errorf("error when unmarshaling file '%s': %v", valuesFilePath, err)
+			}
+		}
+		err = root.Decode(&values)
+		if err != nil {
+			fmt.Println(err)
+		}
 		s := &jsonschema.Document{}
 		s.ReadDeep(&values)
 		fmt.Println(s)
@@ -46,6 +59,7 @@ Examples:
 
 // Execute executes the root command
 func Execute() {
+	rootCmd.Flags().Bool("yaml-comment", false, "Generate a schema with YAML format comments as YAML when it is an empty array or map")
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
